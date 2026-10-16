@@ -24,7 +24,6 @@ const plugin = Plugin.define({
     const valueReader = new OpenCodeValueReader();
     const sessionMessageMapper = new OpenCodeSessionMessageMapper(valueReader);
     const registration = await ctx.rpc.register(CopyLastRpc, {});
-    const notifier = new OpenCodeRpcNotifier(registration.events);
     const useCase = new CopyLastUseCase(
       new OpenCodeSessionContextReader(ctx, sessionMessageMapper),
       new ClipboardyClipboardWriter(),
@@ -38,6 +37,7 @@ const plugin = Plugin.define({
         name: COMMAND_NAME,
         description: `${USAGE} - ${DESCRIPTION}`,
         execute: async ({ sessionID, prompt }) => {
+          const notifier = new OpenCodeRpcNotifier(registration.events, sessionID);
           try {
             const result = await useCase.execute(new CopyLastRequest(prompt.text, sessionID));
             await notifier.success(result.command);
