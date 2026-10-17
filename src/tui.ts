@@ -1,4 +1,5 @@
 import { Plugin } from "@opencode/plugin/tui";
+import type { Context } from "@opencode/plugin/tui/context";
 import { CopyLastRpc, type CopyLastStatus } from "./rpc.js";
 
 const TOAST_DURATION_MS = 4000;
@@ -32,12 +33,21 @@ function isCurrentLocation(
   current: { directory?: string; workspaceID?: string } | undefined,
   event: StatusEvent,
 ): boolean {
-  if (!current?.directory) {
-    return true;
+  if (!current?.directory || !event.location?.directory) {
+    return false;
   }
 
-  return current.directory === event.location?.directory
-    && (current.workspaceID ?? undefined) === (event.location?.workspaceID ?? undefined);
+  return current.directory === event.location.directory
+    && (current.workspaceID ?? undefined) === (event.location.workspaceID ?? undefined);
+}
+
+function isCurrentSession(context: Pick<Context, "data" | "ui">, sessionID: string): boolean {
+  const route = context.ui.router.current();
+  if (route.type !== "session" || !route.sessionID) {
+    return false;
+  }
+
+  return context.data.session.root(route.sessionID) === context.data.session.root(sessionID);
 }
 
 /**
@@ -47,15 +57,18 @@ export default Plugin.define({
   id: "copy-last.tui",
   setup(context) {
     const copyLast = context.client.rpc(CopyLastRpc);
-    const current = context.location ?? context.data.location.default();
 
     return copyLast.events.on("status", (event) => {
+      const current = context.location ?? context.data.location.default();
       if (!isCurrentLocation(current, event as StatusEvent)) {
         return;
       }
 
       const status = readStatus(event.data);
       if (!status) {
+        return;
+      }
+      if (!isCurrentSession(context, status.sessionID)) {
         return;
       }
 
